@@ -52,12 +52,61 @@
 ;;теперь 1-ый уровень вложенности означает коньюнкцию дизъюнкций,
 ;;причем раньше переменные в скобках означали отрицание, теперь наоборот.
 
-;;раскрытие скобок после 1-го отрицания
-;;после этого этапа снова получается дизъюнкция коньюнкций
+;раскрытие скобок после 1-го отрицания
+;после этого этапа снова получается дизъюнкция коньюнкций
 (defun removal_of_brackets (l)
 	(print 'removal_of_brackets)
+
+	; (map_append prev_eq_check l)
+
 	(reduce 'multy_2_brackets l)
+
+)
+
+(defun reduction(l)
+	(reduction_circle l ()) 
 	)
+
+;;принимает переменную и коньюнкцию, выполняет упрощение: x&x = x, x&-x = 0
+(defun prev_eq (conj)
+	(cond
+		(t (map_append_2 'var_conj_check conj))
+	)
+)
+
+;;принимает переменную и коньюнкцию. Если переменная есть в коньюнкции - возвращает nill.
+;;Если в коньюкции есть отрицание переменной - возвращает \0
+(defun var_conj_check(var conj)
+	(print (reduce 'var_var_check conj ::initial-value var))
+)
+
+(defun var_var_check(var1 var2)
+	(print 'var_var_check)
+	(print var1)
+	(print var2)
+	(cond 
+		((null var1) nil)
+		((null var2) nil)
+		((and (listp var1) (eql (car var1) var2)) \0)
+		((and (listp var1) (listp var2) (eql (car var1) (car var2))) nil)
+		((and (listp var2) (eql (car var2) var1)) \0)
+		((and (atom var1) (atom var2) (eql var1 var2)) nil)
+		(t var1)
+	))
+
+
+; (defun reduction_in_circle(l flag)
+	; ((mapcar reduction_conj l)))
+
+; (defun reduction_conj(conj)
+; 	(map_append )
+
+;;аналог mapcar, но используюет append вместо cons и передает функции F еще и список
+(defun map_append_2 (F L)
+	(cond 
+		((null L) nil)
+	(t (cons (funcall F (car L) (cdr L)) (map_append_2 F (cdr L)) ))
+	))
 
 ;;аналог mapcar, но используюет append вместо cons
 (defun map_append (F L)
@@ -90,3 +139,5 @@
 (print (cadr '(Y (Z) . C)))
 (print (cddr '(Y (Z) . C)))
 ; ((X Y) (X (Z)) (Y Y) (Y (Z))) ((P) C)
+(print (var_conj_check 'P '(P H A)))
+(print (prev_eq '(P H (P)) ))
