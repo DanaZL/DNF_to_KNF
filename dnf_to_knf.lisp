@@ -60,7 +60,7 @@
 )
 
 
-;;упрощение выражения:
+;; Упрощение выражения:
 ;;1. Упрощение коньюнкций
 ;;2. Упрощение дизъюнкции:
 ;;   2а) правила поглощения: X v -X = 1; X v X = X
@@ -80,73 +80,118 @@
 (defun reduction_dizj (l res)
 	(cond 
 		((null l) res)
-		; ((not (null (find (car l) res))) 
-			; (reduction_dizj (cdr l) (cons (car l) (blake_rule ((car l) res)))))
-		(t (reduction_dizj (blake_rule (car l) res nil))
-)))
+		((in_conjs (car l) res) ;; есть ли эта коньюнкция до сих поре в результате? 
+			(reduction_dizj (cdr l) (cons (car l) (blake_rule ((car l) res)))))
+		(t (reduction_dizj (blake_rule (car l) res)))
+	)
+)
 
 
 ;; правило поглощения + правило Блэйка для конкретной 
 ;; коньюнкции и всех коньюкций в списке
 (defun blake_rule (conj conjs)
-	(cond
-		((null conjs) null)
-		;;не включаем коньюнкцию
-		((eql (search_intersect conj (car conjs)) 1)
-			 (blake_rule conj (cdr conjs)))
-		;;включаем коньюнкцию
-		(t (cons (car conjs) (blake_rule conj (cdr conjs))))		
-	)
-)
-
-
-(defun search_intersect (l1 l2)
-	(let ((intersect (intersection l1 l2)))
+	(let ((check_intersect_res (check_intersect conj (car conjs)))) 
 		(cond
-			;; 1 коньюнкция содержится во второй - можем не включать вторую 
-			;;коньюнкцию в результат по правилу Блэйка 
-			((eql (length intersect) (length l1)) 1)
-			;; если l1 - отрицание l2, то вместо l1 ставится 1 и функция 
-			;; тождественно равна 1
-			()
-
+			((null conjs) null)
+			;;не включаем коньюнкцию
+			((eql check_intersect_res 1)
+				 (blake_rule conj (cdr conjs)))
+			((eql check_intersect_res 2)
+				 (cons 1 (blake_rule conj (cdr conjs))))
+			;;включаем коньюнкцию
+			(t (cons (car conjs) (blake_rule conj (cdr conjs))))		
 		)
 	)
 )
 
-;;поиск переменной в списке - переменная может быть в скобках
-;;nil - если не найдено
-(defun find_var (var l)
-	(cond 
-		((atom var) (find var l))
-		(t (cond 
-				((reduce #'(lambda (v x) (cond 
-									((eq v t) t) 
-									((atom x) v)
-									((eq (car v) (car x)) t)
-									(t v)
-									)) l ::initial-value v) 
-												t)
-				(t nil)))
+;;анализирует взаимное пересечение коньюнкций
+(defun check_intersect (l1 l2)
+	(cond
+		;; 1 коньюнкция содержится во второй - можем не включать вторую 
+		;;коньюнкцию в результат по правилу Блэйка 
+		;;+ автоматически сокращаем одинаковые коньюнкции 
+		((is_conj_subset l1 l2) 1)
+		;; если l1 - отрицание l2, то вместо l1 ставится 1 и функция 
+		;; тождественно равна 1 - актуально только для конкретных переменных
+		((and (atom l1) (listp l2) (eql l1 (car l2))) 2)
+		((and (listp l1) (atom l2) (eql (car l1) l2)) 2)
 	)
 )
+
+; ;;поиск переменной в списке - переменная может быть в скобках
+; ;;nil - если не найдено
+; (defun find_var (var l)
+; 	(cond 
+; 		((atom var) (find var l))
+; 		(t (cond 
+; 				((reduce #'(lambda (v x) (cond 
+; 									((eq v t) t) 
+; 									((atom x) v)
+; 									((eq (car v) (car x)) t)
+; 									(t v)
+; 									)) l ::initial-value v) 
+; 												t)
+; 				(t nil)))
+; 	)
+; )
 
 ;;поиск коньюнкции в списке коньюнкций
 ;; - фактически сравнение вложенных списков с точностью до вложенных списков
-(defun find_conj (conj conjs)
-	(cond 
-		((null (find conj conjs :test 'compare_conj)) t)
-		(t nil) 
+; (defun find_conj (conj conjs)
+; 	(cond 
+; 		((null (find conj conjs :test 'compare_conj)) t)
+; 		(t nil) 
+; 	)
+; )
+
+
+;;поиск коньюнкции в списке коньюнкций
+(defun in_conjs (conj conjs)
+	(reduce #'(lambda (c x) (cond
+								((eq c t) t)
+								((is_conjs_equal c x) t)
+								(t c)
+								)) :: initial-value conj conjs)
+)
+
+;;проверка на то, что 2 коньюнкции равны с точностью до перестановки переменных 
+(defun is_conjs_equal (conj1 conj2)
+	(cond
+		((eql 0 conj2) nil)
+		((and (null conj1) (null conj2)) t)
+		((null conj1) nil)
+		(t (is_conjs_equal(cdr conj1) (find_var_in_conj_with_delete (car conj1) conj2)))
+	)
+)
+  
+;;проверка на то, что 1-ая коньюнкция является подмножеством 2-ой
+(defun is_conj_subset(conj1 conj2)
+	(cond
+		((eql 0 conj2) nil)
+		((null conj1) t)
+		(t (is_conj_subset(cdr conj1) (find_var_in_conj_with_delete (car conj1) conj2)))
 	)
 )
 
-(defun compare_conj(conj conj)
-	())
+;;функция, которая ищет переменную var (переменная может быть в скобках)
+;; в коньюнкции и, в случае успеха
+;;удаляет ее. Иначе, меняет 1-элемент conj на 0.
+(defun find_var_in_conj_with_delete (var conj)
+	(cond 
+		((null var) conj);; нашли переменную
+		((null conj) 0);; не нашли и дошли до конца коньюнкции
+		; ((numberp (car conj)) (car conj) (find_var_in_conj_with_delete var (cdr conj)))
+		((equal var (car conj)) (find_var_in_conj_with_delete nil (cdr conj)))
+		(t (cons (car conj)  (find_var_in_conj_with_delete var (cdr conj)))) 
+	)
+)
 
-;;проверка на то, является одна коньюнкция отрицанием второй
+
+;;проверка на то, является одна коньюнкция является отрицанием второй
+;;актуально только для конкретных 
 (defun is_not (с1 с2)
-	(let ((intersect (intersection c1 (create_not_conj c2))) 
-	(()))))
+	(is_conjs_equal (create_not_conj c1) c2)
+)
 
 ;;взятие отрицания от коньюнкции
 (defun create_not_conj (c)
@@ -268,5 +313,10 @@
 
 (print (member '(B) '(D (B) N)))
 (print (member '(a y) '(g (a y) c a d e a f)))
-(print (stable-sort '(A (B) C (D)) ))
-(print (intersection '((B) N) '(D (B) N)))
+; (print (stable-sort '(A (B) C (D))  #'))
+; (print (intersection '((B) N) '(D (B) N)) #'<)
+
+(print (equal 'B 'B ))
+(print (is_conj_subset '((A) B C C) '(C B (A) C) ))
+(print (is_conjs_equal '((A) B C C) '(C B (A) C D) ))
+(print (is_not '((A) B (C) C) '(A (B) (C) C) ))
