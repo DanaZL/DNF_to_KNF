@@ -56,57 +56,112 @@
 ;после этого этапа снова получается дизъюнкция коньюнкций
 (defun removal_of_brackets (l)
 	(print 'removal_of_brackets)
-
-	; (map_append prev_eq_check l)
-
 	(reduce 'multy_2_brackets l)
-
 )
 
+
+;;упрощение выражения:
+;;1. Упрощение коньюнкций
+;;2. Применение правила Блэйка
+;;3. Упрощение дизъюнкций 
 (defun reduction(l)
-	(reduction_circle l ()) 
+	(print 'start_reduction)
+	(reduction_conjs l)
+	(reduction_dizj l)
+	; (blake_rule l)
+)
+
+;;правило поглощения(Блэйка): k1 v k1k2 = k1
+(defun reduction_dizj (l res is_end))
+	(cond 
+		((null l) l)
+		()
+
+(defun blake_rule (conj conjs)
+	(mapappend_2 'search_intersect conj conjs)
+)
+
+
+;;TODO - ускорить
+(defun search_intersect (l1 l2)
+	(let (intersect (intersection l1 l2))
+		(cond
+			((eql (length intersect) (length l1)) l1)
+			((eql (length intersect) (length l2)) l2)
+		)
 	)
+)
+
+;;aналог mapcar c параметром
+(defun mapappend_2(F x l)
+	(cond
+		((null l) nil)
+		(t (append (funcall F x (car L)) (mapcar_2 F x (cdr L))))
+	)
+)
+
+(defun reduction_conjs (conjs)
+	(print (mapcar 'reduction_conj conjs))
+)
 
 ;;принимает переменную и коньюнкцию, выполняет упрощение: x&x = x, x&-x = 0
-(defun prev_eq (conj)
-	(cond
-		(t (map_append_2 'var_conj_check conj))
-	)
+(defun reduction_conj (conj)
+	(print (map_append_2 'var_conj_check conj))
+	 ; (map_append_2 'var_conj_check conj)
 )
 
 ;;принимает переменную и коньюнкцию. Если переменная есть в коньюнкции - возвращает nill.
 ;;Если в коньюкции есть отрицание переменной - возвращает \0
 (defun var_conj_check(var conj)
-	(print (reduce 'var_var_check conj ::initial-value var))
+	(reduce 'var_var_check conj ::initial-value var)
 )
 
 (defun var_var_check(var1 var2)
-	(print 'var_var_check)
-	(print var1)
-	(print var2)
+	; (print 'var_var_check)
+	; (print var1)
+	; (print var2)
 	(cond 
 		((null var1) nil)
 		((null var2) nil)
-		((and (listp var1) (eql (car var1) var2)) \0)
+		((and (listp var1) (eql (car var1) var2)) '\0)
 		((and (listp var1) (listp var2) (eql (car var1) (car var2))) nil)
-		((and (listp var2) (eql (car var2) var1)) \0)
+		((and (listp var2) (eql (car var2) var1)) '\0)
 		((and (atom var1) (atom var2) (eql var1 var2)) nil)
 		(t var1)
 	))
 
 
-; (defun reduction_in_circle(l flag)
-	; ((mapcar reduction_conj l)))
-
-; (defun reduction_conj(conj)
-; 	(map_append )
-
 ;;аналог mapcar, но используюет append вместо cons и передает функции F еще и список
 (defun map_append_2 (F L)
+	(print L)
 	(cond 
 		((null L) nil)
-	(t (cons (funcall F (car L) (cdr L)) (map_append_2 F (cdr L)) ))
-	))
+		(t (map_append_2_tmp F (funcall F (car L) (cdr L)) L))
+	)
+)
+
+(defun map_append_2_tmp (F x L)
+	(cond 
+		((eql x '\0) nil)
+		((null x) (map_append_2 F (cdr L))) 
+		(t (cons x (map_append_2 F (cdr L)))) 
+	)
+)
+
+(defun check_zero (l)
+	(print 'check_zero) 
+	(print l)
+	(reduce #'(lambda (x y) 
+		(cond 
+			((eql '\0 x) nil)
+			((eql '\0 y) nil)
+			((null x) nil)
+			((null y) nil)
+			(t x)
+		 ))
+		l	
+	) 
+)
 
 ;;аналог mapcar, но используюет append вместо cons
 (defun map_append (F L)
@@ -129,15 +184,22 @@
 		(mapcar #'(lambda (var2)(list_check var1 var2)) br2 )) br1)
 	)
 
+(defun dnf_to_knf(l) 
+	(reduction (removal_of_brackets (input_parse l)))
+)
+
 
 
 (print (removal_of_brackets '((x y) (y (z)) ((p) c)) ))
 (print (multy_2_brackets '(x y) '(y (z)) ) )
 (print (input_parse '(A v B - C v C Р) ))
+
 ; (print (input_parse (read)))
 (print (car '(Y (Z) . C)))
 (print (cadr '(Y (Z) . C)))
 (print (cddr '(Y (Z) . C)))
 ; ((X Y) (X (Z)) (Y Y) (Y (Z))) ((P) C)
 (print (var_conj_check 'P '(P H A)))
-(print (prev_eq '(P H (P)) ))
+(print (reduction '(((P) X Y) (C X (C)) ((P) X (Z)) (C X (Z)) ((P) Y Y) (C Y Y) ((P) Y (Z)) (C Y (Z))) ))
+
+(print (intersection '(B N) '(D B N)))
