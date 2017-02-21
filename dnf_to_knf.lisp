@@ -59,7 +59,6 @@
 	(reduce 'multy_2_brackets l)
 )
 
-
 ;; Упрощение выражения:
 ;;1. Упрощение коньюнкций
 ;;2. Упрощение дизъюнкции:
@@ -68,21 +67,28 @@
 ;; Упрощения не надо зацикливать!! пока я так думаю
 (defun reduction(l)
 	(print 'start_reduction)
-	(reduction_conjs l)
-	(reduction_dizj l)
-	; (blake_rule l)
+	(let ((dizj (reduction_conjs l)))
+		(reduction_dizj l l)
+	)
 )
 
-;; если строка изменилась - первый елемент nil, иначе 0
 ;; должны пройти по всем коньюкциям и каждую сравнить со всем оставшемися   
 ;; коньюнкциями 
 ;; l - исходный список коньюнкций, res - результирующий
+;; изначально res = l, потом постепенно из него удаляются ненужные коньюнкции
 (defun reduction_dizj (l res)
+	(print (list 'reduction_dizj l 'result res))
+	(print (list 'in_conjs (in_conjs (car l) res)))
 	(cond 
 		((null l) res)
-		((in_conjs (car l) res) ;; есть ли эта коньюнкция до сих поре в результате? 
-			(reduction_dizj (cdr l) (cons (car l) (blake_rule ((car l) res)))))
-		(t (reduction_dizj (blake_rule (car l) res)))
+		(t  (let ((need_check (in_conjs (car l) res)))
+				(cond
+					((eql need_check t);; есть ли эта коньюнкция до сих пор в результате? 
+						(reduction_dizj (cdr l) (cons (car l) (blake_rule (car l) res))))
+					((not (eql need_check t)) (print 'not_in_conjs) (reduction_dizj (cdr l) res) )
+					(t (print need_check))
+					; (t (reduction_dizj (blake_rule (car l) res)))
+			)))
 	)
 )
 
@@ -90,22 +96,29 @@
 ;; правило поглощения + правило Блэйка для конкретной 
 ;; коньюнкции и всех коньюкций в списке
 (defun blake_rule (conj conjs)
-	(let ((check_intersect_res (check_intersect conj (car conjs)))) 
-		(cond
-			((null conjs) null)
-			;;не включаем коньюнкцию
-			((eql check_intersect_res 1)
-				 (blake_rule conj (cdr conjs)))
-			((eql check_intersect_res 2)
-				 (cons 1 (blake_rule conj (cdr conjs))))
-			;;включаем коньюнкцию
-			(t (cons (car conjs) (blake_rule conj (cdr conjs))))		
-		)
+	(print (list 'blake_rule conj conjs))
+	(cond 
+		((null conjs) nil)
+	
+		(t	(let ((check_intersect_res (check_intersect conj (car conjs))))
+				(print check_intersect_res) 
+				(cond
+					; ((null conjs) nil)
+					;;не включаем коньюнкцию
+					((eql check_intersect_res 1)
+						 (blake_rule conj (cdr conjs)))
+					((eql check_intersect_res 2)
+						 (cons 1 (blake_rule conj (cdr conjs))))
+					;;включаем коньюнкцию
+					(t (cons (car conjs) (blake_rule conj (cdr conjs))))		
+				)
+			))
 	)
 )
 
 ;;анализирует взаимное пересечение коньюнкций
 (defun check_intersect (l1 l2)
+	(print (list 'is_intersect l1 l2 (is_conj_subset l1 l2)))
 	(cond
 		;; 1 коньюнкция содержится во второй - можем не включать вторую 
 		;;коньюнкцию в результат по правилу Блэйка 
@@ -151,13 +164,13 @@
 								((eq c t) t)
 								((is_conjs_equal c x) t)
 								(t c)
-								)) :: initial-value conj conjs)
+								)) conjs ::initial-value conj)
 )
 
 ;;проверка на то, что 2 коньюнкции равны с точностью до перестановки переменных 
 (defun is_conjs_equal (conj1 conj2)
 	(cond
-		((eql 0 conj2) nil)
+		((eql 0 (get_last_elem conj2)) nil)
 		((and (null conj1) (null conj2)) t)
 		((null conj1) nil)
 		(t (is_conjs_equal(cdr conj1) (find_var_in_conj_with_delete (car conj1) conj2)))
@@ -166,10 +179,18 @@
   
 ;;проверка на то, что 1-ая коньюнкция является подмножеством 2-ой
 (defun is_conj_subset(conj1 conj2)
+	(print (list 'is_conj_subset conj1 conj2))
 	(cond
-		((eql 0 conj2) nil)
+		((eql 0 (get_last_elem conj2)) nil)
 		((null conj1) t)
-		(t (is_conj_subset(cdr conj1) (find_var_in_conj_with_delete (car conj1) conj2)))
+		(t (is_conj_subset (cdr conj1) (find_var_in_conj_with_delete (car conj1) conj2)))
+	)
+)
+
+(defun get_last_elem (l)
+	(cond 
+		((atom l) l)
+		(t (get_last_elem (cdr l)))
 	)
 )
 
@@ -180,7 +201,6 @@
 	(cond 
 		((null var) conj);; нашли переменную
 		((null conj) 0);; не нашли и дошли до конца коньюнкции
-		; ((numberp (car conj)) (car conj) (find_var_in_conj_with_delete var (cdr conj)))
 		((equal var (car conj)) (find_var_in_conj_with_delete nil (cdr conj)))
 		(t (cons (car conj)  (find_var_in_conj_with_delete var (cdr conj)))) 
 	)
@@ -307,16 +327,18 @@
 (print (car '(Y (Z) . C)))
 (print (cadr '(Y (Z) . C)))
 (print (cddr '(Y (Z) . C)))
-; ((X Y) (X (Z)) (Y Y) (Y (Z))) ((P) C)
+
 (print (var_conj_check 'P '(P H A)))
-; (print (reduction '(((P) X Y) (C X (C)) ((P) X (Z)) (C X (Z)) ((P) Y Y) (C Y Y) ((P) Y (Z)) (C Y (Z))) ))
 
 (print (member '(B) '(D (B) N)))
 (print (member '(a y) '(g (a y) c a d e a f)))
-; (print (stable-sort '(A (B) C (D))  #'))
-; (print (intersection '((B) N) '(D (B) N)) #'<)
 
 (print (equal 'B 'B ))
+(print 'sffs)
 (print (is_conj_subset '((A) B C C) '(C B (A) C) ))
-(print (is_conjs_equal '((A) B C C) '(C B (A) C D) ))
-(print (is_not '((A) B (C) C) '(A (B) (C) C) ))
+(print (is_conjs_equal '(X X) '(X (Z)) ))
+; (print (is_not '((A) B (C) C) '(A (B) (C) C) ))
+(print (not () ))
+; (print (eql '(sdf) t))
+(print (reduction_dizj '((Y X) (X (Z)) (Y)  (Y (Z))) '((Y X) (X (Z)) (Y) (Y (Z)))))
+; (print (in_conjs '(Y (Z)) '((Y) (X (Z)) (X X))))
