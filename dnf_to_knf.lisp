@@ -62,8 +62,10 @@
 
 ;;упрощение выражения:
 ;;1. Упрощение коньюнкций
-;;2. Применение правила Блэйка
-;;3. Упрощение дизъюнкций 
+;;2. Упрощение дизъюнкции:
+;;   2а) правила поглощения: X v -X = 1; X v X = X
+;;	 2б) правило Блэйка: K1 v K1K2 = K1
+;; Упрощения не надо зацикливать!! пока я так думаю
 (defun reduction(l)
 	(print 'start_reduction)
 	(reduction_conjs l)
@@ -71,25 +73,87 @@
 	; (blake_rule l)
 )
 
-;;правило поглощения(Блэйка): k1 v k1k2 = k1
-(defun reduction_dizj (l res is_end))
+;; если строка изменилась - первый елемент nil, иначе 0
+;; должны пройти по всем коньюкциям и каждую сравнить со всем оставшемися   
+;; коньюнкциями 
+;; l - исходный список коньюнкций, res - результирующий
+(defun reduction_dizj (l res)
 	(cond 
-		((null l) l)
-		()
+		((null l) res)
+		; ((not (null (find (car l) res))) 
+			; (reduction_dizj (cdr l) (cons (car l) (blake_rule ((car l) res)))))
+		(t (reduction_dizj (blake_rule (car l) res nil))
+)))
 
+
+;; правило поглощения + правило Блэйка для конкретной 
+;; коньюнкции и всех коньюкций в списке
 (defun blake_rule (conj conjs)
-	(mapappend_2 'search_intersect conj conjs)
+	(cond
+		((null conjs) null)
+		;;не включаем коньюнкцию
+		((eql (search_intersect conj (car conjs)) 1)
+			 (blake_rule conj (cdr conjs)))
+		;;включаем коньюнкцию
+		(t (cons (car conjs) (blake_rule conj (cdr conjs))))		
+	)
 )
 
 
-;;TODO - ускорить
 (defun search_intersect (l1 l2)
-	(let (intersect (intersection l1 l2))
+	(let ((intersect (intersection l1 l2)))
 		(cond
-			((eql (length intersect) (length l1)) l1)
-			((eql (length intersect) (length l2)) l2)
+			;; 1 коньюнкция содержится во второй - можем не включать вторую 
+			;;коньюнкцию в результат по правилу Блэйка 
+			((eql (length intersect) (length l1)) 1)
+			;; если l1 - отрицание l2, то вместо l1 ставится 1 и функция 
+			;; тождественно равна 1
+			()
+
 		)
 	)
+)
+
+;;поиск переменной в списке - переменная может быть в скобках
+;;nil - если не найдено
+(defun find_var (var l)
+	(cond 
+		((atom var) (find var l))
+		(t (cond 
+				((reduce #'(lambda (v x) (cond 
+									((eq v t) t) 
+									((atom x) v)
+									((eq (car v) (car x)) t)
+									(t v)
+									)) l ::initial-value v) 
+												t)
+				(t nil)))
+	)
+)
+
+;;поиск коньюнкции в списке коньюнкций
+;; - фактически сравнение вложенных списков с точностью до вложенных списков
+(defun find_conj (conj conjs)
+	(cond 
+		((null (find conj conjs :test 'compare_conj)) t)
+		(t nil) 
+	)
+)
+
+(defun compare_conj(conj conj)
+	())
+
+;;проверка на то, является одна коньюнкция отрицанием второй
+(defun is_not (с1 с2)
+	(let ((intersect (intersection c1 (create_not_conj c2))) 
+	(()))))
+
+;;взятие отрицания от коньюнкции
+(defun create_not_conj (c)
+	(mapcar #'(lambda (x) (cond
+							((atom x) (list x))
+							(t (car x))
+						)) c) 
 )
 
 ;;aналог mapcar c параметром
@@ -200,6 +264,9 @@
 (print (cddr '(Y (Z) . C)))
 ; ((X Y) (X (Z)) (Y Y) (Y (Z))) ((P) C)
 (print (var_conj_check 'P '(P H A)))
-(print (reduction '(((P) X Y) (C X (C)) ((P) X (Z)) (C X (Z)) ((P) Y Y) (C Y Y) ((P) Y (Z)) (C Y (Z))) ))
+; (print (reduction '(((P) X Y) (C X (C)) ((P) X (Z)) (C X (Z)) ((P) Y Y) (C Y Y) ((P) Y (Z)) (C Y (Z))) ))
 
-(print (intersection '(B N) '(D B N)))
+(print (member '(B) '(D (B) N)))
+(print (member '(a y) '(g (a y) c a d e a f)))
+(print (stable-sort '(A (B) C (D)) ))
+(print (intersection '((B) N) '(D (B) N)))
