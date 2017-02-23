@@ -1,4 +1,4 @@
-;; пропускает все символы до знака дизэюнкции или конца строки
+;; пропускает все символы до знака дизъюнкции или конца строки
 (defun skip_next_conj (l)
 	(cond 
 		((null l) l)
@@ -8,9 +8,9 @@
 
 ;; возвращает следующую коньюнкцию в скобках (до знака дизъюнкции или конца строки)
 (defun search_next_conj (l conj)
-	(print 'search_next_conj)
-	(print l)
-	(print conj)
+	; (print 'search_next_conj)
+	; (print l)
+	; (print conj)
 	(cond
 		((null l) conj)
 		((eql 'v (car l)) conj)
@@ -21,14 +21,14 @@
 
 ;;парсинг ДНФ - выделяет следущую элементарную конъюнкцию и добавляет к результату
 (defun dnf_parse (l res)
-	(print 'in_disj_parse)
-	(print l)
-	(print res)
+	; (print 'in_disj_parse)
+	; (print l)
+	; (print res)
 	(cond 
-		((null l) (print (cons 'end_of_parse res)) res)
+		((null l) (print (list 'end_of_parse res)) res)
 
 		((eql 'v (car l)) 
-			(print (cons 'start_search_new_conj res)) 
+			; (print (cons 'start_search_new_conj res)) 
 				(dnf_parse 
 					(skip_next_conj (cdr l)) 
 					(cons (search_next_conj (cdr l) ()) res) 
@@ -44,13 +44,93 @@
 	(cond 
 		((null l) (empty_l))
 		(t (print 'start_parse) (dnf_parse l '(()) ))
-	))
+	)
+)
 
-;;Перевод из ДНФ в КНФ -> двойное отрицание
+;;Перевод из ДНФ в КНФ -> отрицание -> сокращение -> отрицание -> (получили сокращенную КНФ)-> 
+;;при необходимости, расширяем КНФ до СКНФ
 
 ;;1-ое отрицание для перевода в КНФ фактически не изменяет внутреннее представление
 ;;теперь 1-ый уровень вложенности означает коньюнкцию дизъюнкций,
 ;;причем раньше переменные в скобках означали отрицание, теперь наоборот.
+
+;;затем упрощение
+
+;;2-ое отрицание также не изменяет внутреннее представление.
+;;Получается коньюнкция дизъюнкций, в которой переменная в скобках означает отрицание.
+(defun dnf_to_knf (l)
+	(print "input ")
+	(let ((var_list (create_var_list l ())))
+		(print l)
+		(let ((knf (reduction (print (removal_of_brackets (print (input_parse l)))))) )
+			(print (list "After_all_reduction" knf))
+			(terpri)
+			(print_knf knf)
+			(let ((perfect_knf (knf_to_perfect_knf var_list)))
+				; (print_knf perfect_knf)
+			)
+		)
+	)
+)
+
+;;перевод КНФ в СКНФ
+(defun knf_to_perfect_knf (k var_list)
+	(mapcar_with_param 'extension_dizj var_list k)
+)
+
+;;расширение дизъюнкции переменными, которых в ней нет
+;;для добавления к СКНФ
+(defun extension_dizj (var_list dizj)
+	()
+
+
+;;mapcar с передачей в функцию параметра
+(defun mapcar_with_param (F param L)
+	(cond 
+		((null L) nil)
+		(t (cons (funcall F param (car L)) (mapcar_with_param F param (cdr L) )))
+	)
+)
+
+
+(defun create_var_list(k var_list)
+	(reduce 'add_var_in_list k ::initial-value var_list)
+)
+
+(defun add_var_in_list (var_list dizj)
+	(cond
+		((null dizj) var_list)
+		((and (atom (car dizj)) (null (find (car dizj) var_list)))
+				 (add_var_in_list (cons (car dizj) var_list) (cdr dizj)))
+		((and (listp (car dizj)) (null (find (caar dizj) var_list)))
+				 (add_var_in_list (cons (caar dizj) var_list) (cdr dizj)))
+		(t (add_var_in_list var_list (cdr dizj)))
+	)
+)
+
+
+(defun print_knf (l)
+	(cond
+		((null l) nil)
+		((null (cdr l)) (princ '\( ) (print_dizj (car l)) (princ '\) ) )
+		(t (princ '\( ) (print_dizj (car l)) (princ '\) ) (princ '&) (print_knf (cdr l)))
+	)
+)
+
+(defun print_dizj (l)
+	(cond
+		((null l) nil)
+		((null (cdr l)) (print_var (car l)))
+		(t (print_var (car l)) (princ 'v) (print_dizj (cdr l)))
+	)
+) 
+
+(defun print_var (v)
+	(cond 
+		((listp v) (princ '-) (princ (car v)))
+		(t (princ v))
+	)
+)
 
 ;раскрытие скобок после 1-го отрицания
 ;после этого этапа снова получается дизъюнкция коньюнкций
@@ -68,7 +148,8 @@
 (defun reduction(l)
 	(print 'start_reduction)
 	(let ((dizj (reduction_conjs l)))
-		(reduction_dizj l l)
+		(print (list "After reduction in conjunctions" dizj))
+		(reduction_dizj dizj dizj)
 	)
 )
 
@@ -77,8 +158,8 @@
 ;; l - исходный список коньюнкций, res - результирующий
 ;; изначально res = l, потом постепенно из него удаляются ненужные коньюнкции
 (defun reduction_dizj (l res)
-	(print (list 'reduction_dizj l 'result res))
-	(print (list 'in_conjs (in_conjs (car l) res)))
+	; (print (list 'reduction_dizj l 'result res))
+	; (print (list 'in_conjs (in_conjs (car l) res)))
 	(cond 
 		((null l) res)
 		(t  (let ((need_check (in_conjs (car l) res)))
@@ -96,12 +177,11 @@
 ;; правило поглощения + правило Блэйка для конкретной 
 ;; коньюнкции и всех коньюкций в списке
 (defun blake_rule (conj conjs)
-	(print (list 'blake_rule conj conjs))
+	; (print (list 'blake_rule conj conjs))
 	(cond 
 		((null conjs) nil)
 	
 		(t	(let ((check_intersect_res (check_intersect conj (car conjs))))
-				(print check_intersect_res) 
 				(cond
 					; ((null conjs) nil)
 					;;не включаем коньюнкцию
@@ -118,7 +198,7 @@
 
 ;;анализирует взаимное пересечение коньюнкций
 (defun check_intersect (l1 l2)
-	(print (list 'is_intersect l1 l2 (is_conj_subset l1 l2)))
+	; (print (list 'is_intersect l1 l2 (is_conj_subset l1 l2)))
 	(cond
 		;; 1 коньюнкция содержится во второй - можем не включать вторую 
 		;;коньюнкцию в результат по правилу Блэйка 
@@ -130,33 +210,6 @@
 		((and (listp l1) (atom l2) (eql (car l1) l2)) 2)
 	)
 )
-
-; ;;поиск переменной в списке - переменная может быть в скобках
-; ;;nil - если не найдено
-; (defun find_var (var l)
-; 	(cond 
-; 		((atom var) (find var l))
-; 		(t (cond 
-; 				((reduce #'(lambda (v x) (cond 
-; 									((eq v t) t) 
-; 									((atom x) v)
-; 									((eq (car v) (car x)) t)
-; 									(t v)
-; 									)) l ::initial-value v) 
-; 												t)
-; 				(t nil)))
-; 	)
-; )
-
-;;поиск коньюнкции в списке коньюнкций
-;; - фактически сравнение вложенных списков с точностью до вложенных списков
-; (defun find_conj (conj conjs)
-; 	(cond 
-; 		((null (find conj conjs :test 'compare_conj)) t)
-; 		(t nil) 
-; 	)
-; )
-
 
 ;;поиск коньюнкции в списке коньюнкций
 (defun in_conjs (conj conjs)
@@ -179,7 +232,7 @@
   
 ;;проверка на то, что 1-ая коньюнкция является подмножеством 2-ой
 (defun is_conj_subset(conj1 conj2)
-	(print (list 'is_conj_subset conj1 conj2))
+	; (print (list 'is_conj_subset conj1 conj2))
 	(cond
 		((eql 0 (get_last_elem conj2)) nil)
 		((null conj1) t)
@@ -230,12 +283,29 @@
 )
 
 (defun reduction_conjs (conjs)
-	(print (mapcar 'reduction_conj conjs))
+	(print (mapcar_with_check 'reduction_conj conjs))
 )
 
-;;принимает переменную и коньюнкцию, выполняет упрощение: x&x = x, x&-x = 0
+(defun mapcar_with_check (F L)
+	(cond 
+		((null L) nil)
+		(t (let ((f_value (funcall F (car L)))) 
+			(cond
+				((null f_value) (mapcar_with_check F (cdr L)) )
+				(t (cons f_value (mapcar_with_check F (cdr L))))
+			)
+		))
+	)
+)
+
+;;принимает переменную и коньюнкцию, выполняет упрощения: x&x = x, x&-x = 0
 (defun reduction_conj (conj)
-	(print (map_append_2 'var_conj_check conj))
+	(let ((res_conj (map_append_2 'var_conj_check conj)))
+		(cond 
+			((null (check_zero res_conj)) nil)
+			(t res_conj)
+		)
+	)
 	 ; (map_append_2 'var_conj_check conj)
 )
 
@@ -262,7 +332,7 @@
 
 ;;аналог mapcar, но используюет append вместо cons и передает функции F еще и список
 (defun map_append_2 (F L)
-	(print L)
+	; (print L)
 	(cond 
 		((null L) nil)
 		(t (map_append_2_tmp F (funcall F (car L) (cdr L)) L))
@@ -271,15 +341,15 @@
 
 (defun map_append_2_tmp (F x L)
 	(cond 
-		((eql x '\0) nil)
+		; ((eql x '\0) (cons x (map_append_2 F (cdr L))))
 		((null x) (map_append_2 F (cdr L))) 
 		(t (cons x (map_append_2 F (cdr L)))) 
 	)
 )
 
 (defun check_zero (l)
-	(print 'check_zero) 
-	(print l)
+	; (print 'check_zero) 
+	; (print l)
 	(reduce #'(lambda (x y) 
 		(cond 
 			((eql '\0 x) nil)
@@ -309,36 +379,35 @@
 ;;перемножение 2-х скобок
 (defun multy_2_brackets (br1 br2)
 	(print 'multy_2_brackets)
-	(map_append #'(lambda (var1)
-		(mapcar #'(lambda (var2)(list_check var1 var2)) br2 )) br1)
-	)
-
-(defun dnf_to_knf(l) 
-	(reduction (removal_of_brackets (input_parse l)))
+	(print (map_append #'(lambda (var1)
+		(mapcar #'(lambda (var2)(list_check var1 var2)) br2 )) br1))
 )
 
+(print (check_zero '(A |0| (C)) ))
+; (print (removal_of_brackets '((A) (B (C)) (C D))  ))
+; (print (reduction_conjs (removal_of_brackets '((A) (B (C)) (C D))  )))
+(print (reduction_conjs (removal_of_brackets '((D C) ((C) B) (A))  )))
+; (print (multy_2_brackets '(x y) '(y (z)) ) )
+; (print (removal_of_brackets (input_parse '(A v B - C v C D) )))
 
+; ; (print (input_parse (read)))
+; (print (car '(Y (Z) . C)))
+; (print (cadr '(Y (Z) . C)))
+; (print (cddr '(Y (Z) . C)))
 
-(print (removal_of_brackets '((x y) (y (z)) ((p) c)) ))
-(print (multy_2_brackets '(x y) '(y (z)) ) )
-(print (input_parse '(A v B - C v C Р) ))
+; (print (var_conj_check 'P '(P H A)))
 
-; (print (input_parse (read)))
-(print (car '(Y (Z) . C)))
-(print (cadr '(Y (Z) . C)))
-(print (cddr '(Y (Z) . C)))
+; (print (member '(B) '(D (B) N)))
+; (print (member '(a y) '(g (a y) c a d e a f)))
 
-(print (var_conj_check 'P '(P H A)))
-
-(print (member '(B) '(D (B) N)))
-(print (member '(a y) '(g (a y) c a d e a f)))
-
-(print (equal 'B 'B ))
-(print 'sffs)
-(print (is_conj_subset '((A) B C C) '(C B (A) C) ))
-(print (is_conjs_equal '(X X) '(X (Z)) ))
-; (print (is_not '((A) B (C) C) '(A (B) (C) C) ))
-(print (not () ))
+; (print (equal 'B 'B ))
+; (print 'sffs)
+; (print (is_conj_subset '((A) B C C) '(C B (A) C) ))
+; (print (is_conjs_equal '(X X) '(X (Z)) ))
+; ; (print (is_not '((A) B (C) C) '(A (B) (C) C) ))
+; (print (not () ))
 ; (print (eql '(sdf) t))
-(print (reduction_dizj '((Y X) (X (Z)) (Y)  (Y (Z))) '((Y X) (X (Z)) (Y) (Y (Z)))))
+; (print (reduction_dizj '((Y X) (X (Z)) (Y)  (Y (Z))) '((Y X) (X (Z)) (Y) (Y (Z)))))
 ; (print (in_conjs '(Y (Z)) '((Y) (X (Z)) (X X))))
+(print (create_var_list '((A) (B C) ((C) D)) ()))
+; (print (dnf_to_knf '(A v B - C v C D) ))
